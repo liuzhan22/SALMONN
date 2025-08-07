@@ -14,17 +14,17 @@
 
 model:
   # paths
-  llama_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/vicuna-7b-v1.5"
+  llama_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/vicuna-7b-v1.5"  # Keep for backward compatibility
   whisper_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/whisper-large-v2"
   # beats_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/BEATs/BEATs_iter3_plus_AS2M_finetuned_on_AS2M_cpt2.pt"
   beats_path: "" # Set to "" if not using BEATs
 
   ckpt: "" # if not "", load model from ckpt for training or evaluation
   
-  # Model type configuration
-  model_type: "vicuna"  # Options: "vicuna", "llama3"
-  llama3_path: ""  # Path to LLaMA3-8B-Instruct model
-  use_bf16: False  # Set to True when using LLaMA3
+  # Model type configuration for LLaMA3
+  model_type: "llama3"  # Options: "vicuna", "llama3"
+  llama3_path: "/path/to/llama3-8b-instruct"  # TODO: Set your LLaMA3-8B-Instruct path here
+  use_bf16: True  # Use bf16 for LLaMA3
 
   freeze_whisper: True
   freeze_beats: True
@@ -47,11 +47,11 @@ model:
   lora_dropout: 0.1
 
   multi_prompt: True
-  prompt_template: "USER: {}\nASSISTANT:"
+  prompt_template: "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n{}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"  # LLaMA3 chat template
   prompt_path: "/cpfs02/user/liuzhan/Project/SALMONN/prompts/train_prompt.json"
   test_prompt_path: "/cpfs02/user/liuzhan/Project/SALMONN/prompts/test_prompt.json"
   max_txt_len: 300
-  end_sym: "</s>"
+  end_sym: "<|eot_id|>"  # LLaMA3 end token
 
 datasets:
   train_ann_path: "/cpfs02/user/liuzhan/Project/SALMONN/data/LibriSpeech/train_ann_librispeech.json"
@@ -63,7 +63,7 @@ datasets:
 run:
   # log & settings
   seed: 42
-  output_dir: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_7B"
+  output_dir: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_llama3_8b"
   evaluate: False # if True, only evaluate model on test data
 
   log_freq: 5

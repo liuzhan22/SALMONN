@@ -20,7 +20,7 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import LlamaTokenizer, StoppingCriteriaList
+from transformers import LlamaTokenizer, AutoTokenizer, StoppingCriteriaList
 from peft import LoraConfig, TaskType, get_peft_model
 
 from .Qformer import BertConfig, BertLMHeadModel
@@ -51,12 +51,15 @@ class SALMONN(nn.Module):
     def device(self):
         return list(self.parameters())[0].device
 
-    def maybe_autocast(self, dtype=torch.float16):
+    def maybe_autocast(self, dtype=None):
         # if on cpu, don't use autocast
-        # if on gpu, use autocast with dtype if provided, otherwise use torch.float16
+        # if on gpu, use autocast with dtype if provided, otherwise use the model's default dtype
         enable_autocast = self.device != torch.device("cpu")
 
         if enable_autocast:
+            if dtype is None:
+                # Use bf16 for LLaMA3, float16 for others
+                dtype = torch.bfloat16 if self.use_bf16 else torch.float16
             return torch.cuda.amp.autocast(dtype=dtype)
         else:
             return contextlib.nullcontext()
@@ -91,6 +94,11 @@ class SALMONN(nn.Module):
         end_sym="</s>",
         low_resource=False,  # use 8 bit
         device_8bit=0,  # the device of 8bit model should be set when loading and cannot be changed anymore.
+        
+        # New parameters for LLaMA3 support
+        model_type="vicuna",  # "vicuna" or "llama3"
+        llama3_path="",
+        use_bf16=False,
     ):
         super().__init__()
 
@@ -104,24 +112,47 @@ class SALMONN(nn.Module):
         self.max_txt_len = max_txt_len
         self.end_sym = end_sym
         self.low_resource = low_resource
+        self.model_type = model_type
+        self.use_bf16 = use_bf16
+
+        # Determine which model to load based on model_type
+        if model_type == "llama3" and llama3_path:
+            actual_llama_path = llama3_path
+            torch_dtype = torch.bfloat16 if use_bf16 else torch.float16
+        else:
+            actual_llama_path = llama_path
+            torch_dtype = torch.float16
 
         logging.info('Loading LLaMA Tokenizer')
-        self.llama_tokenizer = LlamaTokenizer.from_pretrained(llama_path, use_fast=False)
-        self.llama_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        # Use AutoTokenizer for LLaMA3 for better compatibility
+        if model_type == "llama3":
+            self.llama_tokenizer = AutoTokenizer.from_pretrained(actual_llama_path, use_fast=False)
+        else:
+            self.llama_tokenizer = LlamaTokenizer.from_pretrained(actual_llama_path, use_fast=False)
+        
+        # Configure tokenizer based on model type
+        if model_type == "llama3":
+            # LLaMA3 already has proper special tokens, check if pad token exists
+            if self.llama_tokenizer.pad_token is None:
+                self.llama_tokenizer.pad_token = self.llama_tokenizer.eos_token
+        else:
+            # For Vicuna/LLaMA2, add pad token
+            self.llama_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        
         self.llama_tokenizer.padding_side = "right"
 
-        logging.info('Loading LLaMA Model')
+        logging.info(f'Loading LLaMA Model ({model_type}) with dtype {torch_dtype}')
         if self.low_resource:
             self.llama_model = LlamaForCausalLM.from_pretrained(
-                llama_path,
-                torch_dtype=torch.float16,
+                actual_llama_path,
+                torch_dtype=torch_dtype,
                 load_in_8bit=True,
                 device_map={"": device_8bit},
             )
         else:
             self.llama_model = LlamaForCausalLM.from_pretrained(
-                llama_path,
-                torch_dtype=torch.float16,
+                actual_llama_path,
+                torch_dtype=torch_dtype,
             )
 
         self.llama_model.resize_token_embeddings(len(self.llama_tokenizer))
@@ -223,7 +254,7 @@ class SALMONN(nn.Module):
                 if audio_embeds is not None:
                     audio_embeds = self.ln_audio(audio_embeds)
                     if audio_embeds.size(1) < speech_embeds.size(1):
-                        audio_embeds = F.pad(audio_embeds, (0, 0, 0, speech_embeds.size(1) - audio_embeds.size(1)))
+                        audio_embeds = F.pad(audio_embeds , (0, 0, 0, speech_embeds.size(1) - audio_embeds.size(1)))
                     elif audio_embeds.size(1) > speech_embeds.size(1):
                         speech_embeds = F.pad(speech_embeds, (0, 0, 0, audio_embeds.size(1) - speech_embeds.size(1)))
                     speech_embeds = torch.cat((speech_embeds, audio_embeds), dim=-1)
@@ -260,6 +291,37 @@ class SALMONN(nn.Module):
                 raise NotImplementedError
 
         return speech_embeds, speech_atts
+
+    def _get_stop_token_ids(self):
+        """Get appropriate stop token IDs based on model type"""
+        stop_token_ids = []
+        
+        if self.model_type == "llama3":
+            # LLaMA3 specific tokens
+            if hasattr(self.llama_tokenizer, 'eos_token_id') and self.llama_tokenizer.eos_token_id is not None:
+                stop_token_ids.append(self.llama_tokenizer.eos_token_id)
+            
+            # Try to get LLaMA3 specific end tokens
+            special_tokens = ["<|eot_id|>", "<|end_of_text|>"]
+            for token in special_tokens:
+                try:
+                    token_id = self.llama_tokenizer.convert_tokens_to_ids(token)
+                    if token_id != self.llama_tokenizer.unk_token_id:
+                        stop_token_ids.append(token_id)
+                except:
+                    pass
+            
+            # Fallback to common LLaMA3 token IDs if no tokens found
+            if not stop_token_ids:
+                stop_token_ids = [128001, 128009]  # <|end_of_text|>, <|eot_id|>
+        else:
+            # Vicuna/LLaMA2 uses EOS token (typically ID 2)
+            if hasattr(self.llama_tokenizer, 'eos_token_id') and self.llama_tokenizer.eos_token_id is not None:
+                stop_token_ids.append(self.llama_tokenizer.eos_token_id)
+            else:
+                stop_token_ids = [2]  # Default EOS token ID
+        
+        return stop_token_ids
 
     def encode_speech(self, spectrogram, raw_wav=None, audio_padding_mask=None):
         with self.maybe_autocast():
@@ -420,7 +482,10 @@ class SALMONN(nn.Module):
         embeds = torch.cat([bos_embeds, speech_embeds], dim=1)
         attns = torch.cat([atts_bos, speech_atts], dim=1)
 
-        stop_words_ids = [torch.tensor([2]).cuda()]  
+        # Set up stopping criteria based on model type
+        stop_token_ids = self._get_stop_token_ids()
+        stop_words_ids = [torch.tensor([token_id]).to(embeds.device) for token_id in stop_token_ids]
+        
         stopping_criteria = StoppingCriteriaList([StoppingCriteriaSub(stops=stop_words_ids)])
         outputs = self.llama_model.generate(
             inputs_embeds=embeds,
@@ -436,6 +501,19 @@ class SALMONN(nn.Module):
             attention_mask=attns,
         )
         text = self.llama_tokenizer.batch_decode(outputs, add_special_tokens=False)
+        
+        # Clean up the generated text for different model types
+        if self.model_type == "llama3":
+            # Remove LLaMA3 specific tokens from the output
+            cleaned_text = []
+            for t in text:
+                # Remove common LLaMA3 special tokens
+                t = t.replace("<|eot_id|>", "")
+                t = t.replace("<|end_of_text|>", "")
+                t = t.replace("<|start_header_id|>", "")
+                t = t.replace("<|end_header_id|>", "")
+                cleaned_text.append(t.strip())
+            text = cleaned_text
 
         return text
 
@@ -469,6 +547,11 @@ class SALMONN(nn.Module):
         end_sym = config.get("end_sym", "</s>")
         low_resource = config.get("low_resource", False)
         device_8bit = config.get("device_8bit", 0)
+        
+        # New parameters for LLaMA3 support
+        model_type = config.get("model_type", "vicuna")
+        llama3_path = config.get("llama3_path", "")
+        use_bf16 = config.get("use_bf16", False)
 
         model = cls(
             llama_path=llama_path,
@@ -495,6 +578,9 @@ class SALMONN(nn.Module):
             end_sym=end_sym,
             low_resource=low_resource,
             device_8bit=device_8bit,
+            model_type=model_type,
+            llama3_path=llama3_path,
+            use_bf16=use_bf16,
         )
 
         ckpt_path = config.get("ckpt", "")

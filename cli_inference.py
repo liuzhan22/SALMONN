@@ -45,8 +45,8 @@ wav_processor = WhisperFeatureExtractor.from_pretrained(cfg.config.model.whisper
 while True:
     try:
         print("=====================================")
-        wav_path = input("Your Wav Path:\n")
-        prompt = input("Your Prompt:\n")
+        wav_path = "/cpfs02/shared/speechllm/music_project/SALMONN-main/data/RWP6BHh_c7Y_resampled16k.wav"
+        prompt = "Listen to the provided music and generate a detailed description strictly based on its content."
 
         samples = prepare_one_sample(wav_path, wav_processor)
         prompt = [

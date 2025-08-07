@@ -11,6 +11,7 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from tensorboardX import SummaryWriter
+import wandb
 
 from dist_utils import main_process, is_dist_avail_and_initialized, is_main_process, get_rank, get_world_size
 from logger import MetricLogger, SmoothedValue
@@ -87,6 +88,14 @@ class Runner:
             warmup_start_lr=self.config.config.run.optims.get("warmup_start_lr", -1),
         )
 
+        if is_main_process():
+            wandb.init(
+                project="SALMONN",
+                name=f"train_LibriSpeech960_7B_wo_beats_{job_id}",
+                config=self.config.to_dict(),
+                dir=str(self.output_dir),
+            )
+
         self.log_config()
 
     def unwrap_dist_model(self, model):
@@ -136,6 +145,8 @@ class Runner:
 
             metric_logger.update(loss=loss.item())
             metric_logger.update(lr=self.optimizer.param_groups[0]["lr"])
+            if is_main_process():
+                wandb.log({"loss": loss.item(), "lr": self.optimizer.param_groups[0]["lr"]})
 
         metric_logger.synchronize_between_processes()
         logging.info("Averaged stats: " + str(metric_logger.global_avg()))
@@ -222,6 +233,13 @@ class Runner:
         ret["loss"] = (res["loss"] / res["n_sample"]).item()
         ret["agg_metrics"] = (res["correct"] / res["n_token"]).item()
 
+        if is_main_process():
+            wandb.log({
+                "val_loss": ret["loss"],
+                "val_acc": ret["agg_metrics"],
+                "epoch": epoch if isinstance(epoch, int) else -1,
+            })
+
         return ret
 
     def save_result(self, result, result_dir, filename):
@@ -303,6 +321,7 @@ class Runner:
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         logging.info("Training time {}".format(total_time_str))
+        wandb.finish()
 
     @main_process
     def log_config(self):

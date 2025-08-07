@@ -14,11 +14,11 @@
 
 model:
   # paths
-  llama_path: "path to llama model"
-  whisper_path: "path to whisper model"
-  beats_path: "path to beats model"
+  llama_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/vicuna-13b-v1.1"
+  whisper_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/whisper-large-v2"
+  beats_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/BEATs/BEATs_iter3_plus_AS2M_finetuned_on_AS2M_cpt2.pt"
 
-  ckpt: "model ckpt" # model used for decoding
+  ckpt: "/cpfs02/shared/speechllm/music_project/SALMONN-main/log/202501141039/checkpoint_best.pth" # model used for decoding
 
   freeze_whisper: True
   freeze_beats: True
@@ -42,8 +42,8 @@ model:
 
   multi_prompt: True
   prompt_template: "USER: {}\nASSISTANT:"
-  prompt_path: "prompts/train_prompt.json"
-  test_prompt_path: "prompts/test_prompt.json"
+  prompt_path: "/cpfs02/user/liuzhan/Project/SALMONN/prompts/train_prompt.json"
+  test_prompt_path: "/cpfs02/user/liuzhan/Project/SALMONN/prompts/test_prompt.json"
   max_txt_len: 300
   end_sym: "</s>"
 
