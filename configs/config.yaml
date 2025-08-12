@@ -15,7 +15,7 @@
 model:
   # paths
   llama_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/vicuna-7b-v1.5"
-  whisper_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/whisper-large-v2"
+  whisper_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/whisper-large-v2"
   # beats_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/BEATs/BEATs_iter3_plus_AS2M_finetuned_on_AS2M_cpt2.pt"
   beats_path: "" # Set to "" if not using BEATs
 
@@ -71,7 +71,7 @@ run:
   iters_per_epoch: 3000
   accum_grad_iters: 1
   batch_size_train: 16
-  batch_size_eval: 8
+  batch_size_eval: 1
   num_workers: 16
 
   device: "cuda"

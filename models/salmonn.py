@@ -20,7 +20,7 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import LlamaTokenizer, AutoTokenizer, StoppingCriteriaList
+from transformers import LlamaTokenizer, AutoTokenizer, AutoModelForCausalLM, StoppingCriteriaList
 from peft import LoraConfig, TaskType, get_peft_model
 
 from .Qformer import BertConfig, BertLMHeadModel
@@ -146,13 +146,15 @@ class SALMONN(nn.Module):
             self.llama_model = LlamaForCausalLM.from_pretrained(
                 actual_llama_path,
                 torch_dtype=torch_dtype,
+                trust_remote_code=True,
                 load_in_8bit=True,
                 device_map={"": device_8bit},
             )
         else:
-            self.llama_model = LlamaForCausalLM.from_pretrained(
+            self.llama_model = AutoModelForCausalLM.from_pretrained(
                 actual_llama_path,
                 torch_dtype=torch_dtype,
+                trust_remote_code=True,
             )
 
         self.llama_model.resize_token_embeddings(len(self.llama_tokenizer))
@@ -454,8 +456,12 @@ class SALMONN(nn.Module):
             correct = (results[mask] == labels[mask]).float().sum()
             total = len(labels[mask])
 
+            ## ASR text decoding
+            pred_ids = outputs.logits[:, empty_targets.size(1) - 1: -1, :].argmax(dim=-1)
+            decoded_texts = self.llama_tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+
         if verbose:
-            return {"loss": loss, "correct": correct, "total": total}
+            return {"loss": loss, "correct": correct, "total": total, "decoded_texts": decoded_texts}
 
         return {"loss": loss}
 

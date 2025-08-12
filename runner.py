@@ -13,6 +13,14 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from tensorboardX import SummaryWriter
 import wandb
 
+import kaldialign
+import re
+from whisper_normalizer.english import EnglishTextNormalizer
+from typing import Dict,  List, Tuple
+from collections import defaultdict
+
+from icecream import ic
+
 from dist_utils import main_process, is_dist_avail_and_initialized, is_main_process, get_rank, get_world_size
 from logger import MetricLogger, SmoothedValue
 from utils import get_dataloader, prepare_sample
@@ -98,6 +106,9 @@ class Runner:
 
         self.log_config()
 
+        # Normalizer
+        self.english = EnglishTextNormalizer()
+
     def unwrap_dist_model(self, model):
         if self.use_distributed:
             return model.module
@@ -155,6 +166,60 @@ class Runner:
             for k, meter in metric_logger.meters.items()
         }
 
+    def WER(self, pred, refs):
+        # print(f"Another way of wer is {wer.compute(predictions=pred, references=refs)}")
+        ERR = "*"
+        num_corr = 0
+        subs: Dict[Tuple[str, str], int] = defaultdict(int)
+        ins: Dict[str, int] = defaultdict(int)
+        dels: Dict[str, int] = defaultdict(int)
+        words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
+        for ref, hyp in zip(refs, pred):
+            ref = ref.split()
+            hyp = hyp.split()
+            ali = kaldialign.align(ref, hyp, ERR, sclite_mode=False)
+            for ref_word, hyp_word in ali:
+                if ref_word == ERR:
+                    ins[hyp_word] += 1
+                    words[hyp_word][3] += 1
+                elif hyp_word == ERR:
+                    dels[ref_word] += 1
+                    words[ref_word][4] += 1
+                elif hyp_word != ref_word:
+                    subs[(ref_word, hyp_word)] += 1
+                    words[ref_word][1] += 1
+                    words[hyp_word][2] += 1
+                else:
+                    words[ref_word][0] += 1
+                    num_corr += 1
+        ref_len = sum([len(r.split()) for r in refs])
+        sub_errs = sum(subs.values())
+        ins_errs = sum(ins.values())
+        del_errs = sum(dels.values())
+        tot_errs = sub_errs + ins_errs + del_errs
+        tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
+        print(f"Insertion error: {ins_errs}, deletion error: {del_errs}, substitution error: {sub_errs}, and WER is {((ins_errs+del_errs+sub_errs)*100/ref_len):.2f}%")
+
+        return ins_errs, del_errs, sub_errs, tot_err_rate
+                
+    def remove_sp(self,text):
+        PUNCS = '!,.?;:'
+        gt = re.sub(r"<\|.*?\|>", " ", text)
+        gt = re.sub(rf"\s+", r" ", gt) 
+        gt = re.sub(f" ?([{PUNCS}])", r"\1", gt)
+        gt = gt.lstrip(" ")
+        return gt
+    
+    def normalize(self, text, prediction):
+        # Normalization
+        text = self.remove_sp(text)
+        prediction = self.remove_sp(prediction)
+        text = self.english(text)
+        prediction = self.english(prediction)
+
+        return text, prediction
+
+
     @torch.no_grad()
     def valid_epoch(self, epoch, split, decode=False, save_json=False):
         model = self.unwrap_dist_model(self.model)
@@ -167,11 +232,25 @@ class Runner:
         header = "Eval: data epoch: [{}]".format(epoch)
 
         results = []
+        ground_truths, predictions = [], []
         for samples in metric_logger.log_every(dataloader, self.config.config.run.log_freq, header=header):
             samples = prepare_sample(samples, cuda_enabled=self.cuda_enabled)
 
             with torch.cuda.amp.autocast(enabled=self.use_amp):
                 forward_result = model(samples, verbose=True)
+
+            supervisions = samples["text"]
+            predict_texts = forward_result.get("decoded_texts", None)
+
+            assert len(supervisions) == len(predict_texts), "The number of supervisions and predictions do not match."
+            assert len(supervisions) == 1, "Only one supervision is expected per eval batch."
+            gt_text, prediction = self.normalize(supervisions[0], predict_texts[0])
+            ground_truths.append(gt_text)
+            predictions.append(prediction)
+
+            insertion_errs, deletion_errs, substitution_errs, tot_err_rate = self.WER(prediction, gt_text)
+            ic(insertion_errs, deletion_errs, substitution_errs, tot_err_rate)
+
             loss = forward_result.get("loss", 0)
             correct = forward_result.get("correct", 0)
             total = forward_result.get("total", 1)
@@ -213,6 +292,7 @@ class Runner:
             "correct": torch.tensor(0).float().cuda(),
             "n_token": torch.tensor(0).float().cuda(),
         }
+
         for item in results:
             item_loss = item["loss"]
             item_n_sample = len(item["id"])
@@ -237,6 +317,10 @@ class Runner:
             wandb.log({
                 "val_loss": ret["loss"],
                 "val_acc": ret["agg_metrics"],
+                "val_insertion_errs": insertion_errs,
+                "val_deletion_errs": deletion_errs,
+                "val_substitution_errs": substitution_errs,
+                "val_tot_err_rate": tot_err_rate,
                 "epoch": epoch if isinstance(epoch, int) else -1,
             })
 
