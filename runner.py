@@ -233,6 +233,7 @@ class Runner:
 
         results = []
         ground_truths, predictions = [], []
+
         for samples in metric_logger.log_every(dataloader, self.config.config.run.log_freq, header=header):
             samples = prepare_sample(samples, cuda_enabled=self.cuda_enabled)
 
@@ -247,9 +248,6 @@ class Runner:
             gt_text, prediction = self.normalize(supervisions[0], predict_texts[0])
             ground_truths.append(gt_text)
             predictions.append(prediction)
-
-            insertion_errs, deletion_errs, substitution_errs, tot_err_rate = self.WER(prediction, gt_text)
-            ic(insertion_errs, deletion_errs, substitution_errs, tot_err_rate)
 
             loss = forward_result.get("loss", 0)
             correct = forward_result.get("correct", 0)
@@ -312,6 +310,9 @@ class Runner:
         ret = {"loss": 0, "agg_metrics": 0}
         ret["loss"] = (res["loss"] / res["n_sample"]).item()
         ret["agg_metrics"] = (res["correct"] / res["n_token"]).item()
+
+        insertion_errs, deletion_errs, substitution_errs, tot_err_rate = self.WER(predictions, ground_truths)
+        # ic(insertion_errs, deletion_errs, substitution_errs, tot_err_rate)
 
         if is_main_process():
             wandb.log({
