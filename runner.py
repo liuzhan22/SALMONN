@@ -28,7 +28,7 @@ from optims import get_optimizer, LinearWarmupCosineLRScheduler
 
 
 class Runner:
-    def __init__(self, cfg, model, datasets, job_id):
+    def __init__(self, cfg, model, datasets, job_id, checkpoint=None):
         self.config = cfg
 
         # log
@@ -96,6 +96,9 @@ class Runner:
             warmup_start_lr=self.config.config.run.optims.get("warmup_start_lr", -1),
         )
 
+        # Load training state from checkpoint if provided
+        self.load_training_state(checkpoint)
+
         if is_main_process():
             wandb.init(
                 project="SALMONN",
@@ -114,6 +117,44 @@ class Runner:
             return model.module
         else:
             return model
+
+    def load_training_state(self, checkpoint):
+        """
+        Load training state (optimizer, scaler, epoch) from checkpoint if provided.
+        Note: Model weights are already loaded in SALMONN.from_config()
+        Args:
+            checkpoint: Checkpoint dict loaded from model initialization, or None
+        """
+        if checkpoint is not None:
+            logging.info("Loading training state from checkpoint")
+            try:
+                # Load optimizer state
+                if "optimizer" in checkpoint:
+                    self.optimizer.load_state_dict(checkpoint["optimizer"])
+                    logging.info("Optimizer state loaded successfully.")
+                
+                # Load scaler state if using AMP
+                if self.scaler and "scaler" in checkpoint and checkpoint["scaler"] is not None:
+                    self.scaler.load_state_dict(checkpoint["scaler"])
+                    logging.info("Scaler state loaded successfully.")
+                
+                # Set start epoch to checkpoint epoch + 1
+                if "epoch" in checkpoint:
+                    self.start_epoch = checkpoint["epoch"] + 1
+                    logging.info(f"Resuming training from epoch {self.start_epoch}")
+                    
+                    # Ensure scheduler learning rate is consistent with resumed state
+                    self.scheduler.step(cur_epoch=self.start_epoch, cur_step=0)
+                    current_lr = self.optimizer.param_groups[0]["lr"]
+                    logging.info(f"Scheduler learning rate after resume: {current_lr}")
+                else:
+                    logging.warning("No epoch information found in checkpoint. Starting from epoch 0.")
+                    
+            except Exception as e:
+                logging.error(f"Failed to load training state: {e}")
+                logging.info("Starting training from scratch.")
+        else:
+            logging.info("No checkpoint provided. Starting training from scratch.")
 
     def train_epoch(self, epoch):
         self.model.train()
@@ -197,7 +238,7 @@ class Runner:
         ins_errs = sum(ins.values())
         del_errs = sum(dels.values())
         tot_errs = sub_errs + ins_errs + del_errs
-        tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
+        tot_err_rate = round(100.0 * tot_errs / ref_len, 2)
         print(f"Insertion error: {ins_errs}, deletion error: {del_errs}, substitution error: {sub_errs}, and WER is {((ins_errs+del_errs+sub_errs)*100/ref_len):.2f}%")
 
         return ins_errs, del_errs, sub_errs, tot_err_rate

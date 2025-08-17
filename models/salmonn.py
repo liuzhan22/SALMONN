@@ -594,5 +594,8 @@ class SALMONN(nn.Module):
             logging.info("Load SALMONN ckpt from: {}".format(ckpt_path))
             ckpt = torch.load(ckpt_path, map_location="cpu")
             model.load_state_dict(ckpt['model'], strict=False)
-
-        return model
+            
+            # Return model along with checkpoint information for training resume
+            return model, ckpt
+        
+        return model, None

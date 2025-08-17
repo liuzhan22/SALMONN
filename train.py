@@ -71,7 +71,7 @@ def main():
     cfg.pretty_print()
 
     # build model
-    model = load_model(model_config)
+    model, checkpoint = load_model(model_config)
 
     # build datasets
     datasets = {
@@ -81,7 +81,7 @@ def main():
     }
 
     # build runner
-    runner = Runner(cfg, model, datasets, job_id)
+    runner = Runner(cfg, model, datasets, job_id, checkpoint)
 
     # train
     runner.train()

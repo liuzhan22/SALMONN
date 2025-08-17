@@ -15,4 +15,10 @@
 from .salmonn import SALMONN
 
 def load_model(config):
+    """
+    Load model and return checkpoint information if available.
+    Returns:
+        model: The loaded SALMONN model
+        checkpoint: Checkpoint dict if model was loaded from checkpoint, None otherwise
+    """
     return SALMONN.from_config(config)

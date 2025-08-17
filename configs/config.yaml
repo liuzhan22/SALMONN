@@ -15,7 +15,7 @@
 model:
   # paths
   llama_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/vicuna-7b-v1.5"
-  whisper_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/whisper-large-v2"
+  whisper_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/whisper-large-v3"
   # beats_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/BEATs/BEATs_iter3_plus_AS2M_finetuned_on_AS2M_cpt2.pt"
   beats_path: "" # Set to "" if not using BEATs
 
@@ -58,7 +58,7 @@ datasets:
   valid_ann_path: "/cpfs02/user/liuzhan/Project/SALMONN/data/LibriSpeech/dev_ann_clean_librispeech.json"
   test_ann_path: "/cpfs02/user/liuzhan/Project/SALMONN/data/LibriSpeech/test_ann_clean_librispeech.json"
 
-  whisper_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/whisper-large-v2"
+  whisper_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/whisper-large-v3"
 
 run:
   # log & settings
