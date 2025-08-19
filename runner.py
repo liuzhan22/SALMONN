@@ -287,6 +287,11 @@ class Runner:
             assert len(supervisions) == len(predict_texts), "The number of supervisions and predictions do not match."
             assert len(supervisions) == 1, "Only one supervision is expected per eval batch."
             gt_text, prediction = self.normalize(supervisions[0], predict_texts[0])
+
+            # DEBUG
+            # print(f"Ground Truth: {gt_text}")
+            # print(f"Prediction: {prediction}")
+
             ground_truths.append(gt_text)
             predictions.append(prediction)
 

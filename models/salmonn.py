@@ -132,9 +132,8 @@ class SALMONN(nn.Module):
         
         # Configure tokenizer based on model type
         if model_type == "llama3":
-            # LLaMA3 already has proper special tokens, check if pad token exists
-            if self.llama_tokenizer.pad_token is None:
-                self.llama_tokenizer.pad_token = self.llama_tokenizer.eos_token
+            # Use reserved special token as pad token for LLaMA3
+            self.llama_tokenizer.add_special_tokens({"pad_token": "<|reserved_special_token_0|>"})
         else:
             # For Vicuna/LLaMA2, add pad token
             self.llama_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -158,6 +157,12 @@ class SALMONN(nn.Module):
             )
 
         self.llama_model.resize_token_embeddings(len(self.llama_tokenizer))
+        
+        # Update model config for LLaMA3 pad token after model loading
+        if model_type == "llama3" and hasattr(self.llama_model, 'config'):
+            self.llama_model.config.pad_token_id = self.llama_tokenizer.pad_token_id
+            logging.info(f"Updated model pad_token_id to: {self.llama_model.config.pad_token_id}")
+        
         for name, param in self.llama_model.named_parameters():
             param.requires_grad = False
         logging.info('Loading LLaMA Done')

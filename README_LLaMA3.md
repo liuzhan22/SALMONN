@@ -21,6 +21,7 @@
 - **新增**: 更新了 `generate` 方法的停止条件，支持LLaMA3的特殊token
 - **新增**: 添加了 `_get_stop_token_ids` 辅助方法，自动检测合适的停止token
 - **新增**: 改进了文本解码，自动清理LLaMA3的特殊token
+- **重要修复**: 使用`<|reserved_special_token_0|>`作为LLaMA3的pad token，避免与eos token冲突
 
 ### 3. 数据类型变更
 
@@ -66,6 +67,7 @@ python train.py --config configs/config.yaml
 4. **特殊token**: LLaMA3有自己的特殊token体系，代码已自动处理
 5. **停止条件**: LLaMA3使用 `<|eot_id|>` 和 `<|end_of_text|>` 作为停止token
 6. **文本清理**: 生成的文本会自动清理LLaMA3的特殊标记
+7. **Pad Token修复**: 使用 `<|reserved_special_token_0|>` 作为pad token，避免与eos token冲突导致的训练问题
 
 ## 配置参数对比
 
@@ -77,6 +79,27 @@ python train.py --config configs/config.yaml
 | `end_sym` | "</s>" | "<\|eot_id\|>" |
 | tokenizer | `LlamaTokenizer` | `AutoTokenizer` |
 | stop_tokens | EOS (ID: 2) | `<\|eot_id\|>`, `<\|end_of_text\|>` |
+| pad_token | `[PAD]` | `<\|reserved_special_token_0\|>` (ID: 128002) |
+
+## Pad Token 配置修复
+
+### 问题描述
+原来的代码中，LLaMA3的pad token被设置为eos token，这可能导致训练过程中的冲突问题。
+
+### 解决方案
+使用LLaMA3预留的特殊token `<|reserved_special_token_0|>` 作为pad token：
+
+```python
+# 新的配置方式
+tokenizer.add_special_tokens({"pad_token": "<|reserved_special_token_0|>"})
+model.config.pad_token_id = tokenizer.pad_token_id
+tokenizer.padding_side = 'right'
+```
+
+### 优势
+- 避免pad token与eos token冲突
+- 使用官方预留的特殊token，更加规范
+- 减少训练过程中的潜在问题
 
 ## 停止条件详细说明
 

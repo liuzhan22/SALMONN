@@ -1,0 +1,65 @@
+# Copyright (2024) Tsinghua University, Bytedance Ltd. and/or its affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+model:
+  # paths
+  # 不需要设置llama_path，因为我们使用model_type和llama3_path
+  llama_path: ""
+  whisper_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/whisper-large-v3"
+  beats_path: ""
+
+  # 新增LLaMA3特有配置
+  model_type: "llama3"  # 使用llama3模型类型
+  llama3_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/llama3.1-8b-instruct"  # 请修改为您的LLaMA 3.1-8b-instruct模型路径
+  use_bf16: True  # LLaMA3.1推荐使用bfloat16精度
+  
+  ckpt: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_whisp_lar_v3_llama3_8b/202508152328/checkpoint_best.pth"  # 您微调后的模型checkpoint路径
+
+  freeze_whisper: True
+  freeze_beats: True
+
+  # window-level Q-Former
+  use_speech_Qformer: True
+  freeze_speech_QFormer: False
+  window_level_Qformer: True
+  num_speech_query_token: 1
+  second_per_window: 0.333333
+  second_stride: 0.333333
+
+  speech_llama_proj_model: ""
+  freeze_speech_llama_proj: False
+
+  # LoRA
+  lora: True
+  lora_rank: 8
+  lora_alpha: 32
+  lora_dropout: 0.1
+
+  multi_prompt: True
+  # LLaMA 3.1的提示模板
+  prompt_template: "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n{}\n<|start_header_id|>assistant<|end_header_id|>\n"
+  prompt_path: "/cpfs02/user/liuzhan/Project/SALMONN/prompts/train_prompt.json"
+  test_prompt_path: "/cpfs02/user/liuzhan/Project/SALMONN/prompts/test_prompt.json"
+  max_txt_len: 300
+  end_sym: "<|eot_id|>"  # LLaMA 3.1使用的结束符
+
+generate:
+  max_new_tokens: 200
+  num_beams: 4
+  do_sample: False
+  min_length: 1
+  temperature: 1.0
+  top_p: 0.9
+  repetition_penalty: 1.0
+  length_penalty: 1.0

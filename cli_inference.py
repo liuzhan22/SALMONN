@@ -36,7 +36,7 @@ parser.add_argument(
 args = parser.parse_args()
 cfg = Config(args)
 
-model = SALMONN.from_config(cfg.config.model)
+model, ckpt = SALMONN.from_config(cfg.config.model)
 model.to(args.device)
 model.eval()
 
@@ -45,8 +45,8 @@ wav_processor = WhisperFeatureExtractor.from_pretrained(cfg.config.model.whisper
 while True:
     try:
         print("=====================================")
-        wav_path = "/cpfs02/shared/speechllm/music_project/SALMONN-main/data/RWP6BHh_c7Y_resampled16k.wav"
-        prompt = "Listen to the provided music and generate a detailed description strictly based on its content."
+        wav_path = "/cpfs02/user/liuzhan/Project/SALMONN/data/LibriSpeech/LibriSpeech/test-clean/8230/279154/8230-279154-0000.flac"
+        prompt = "Recognize the speech and give me the transcription."
 
         samples = prepare_one_sample(wav_path, wav_processor)
         prompt = [
@@ -54,7 +54,7 @@ while True:
         ]
         print("Output:")
         # for environment with cuda>=117
-        with torch.cuda.amp.autocast(dtype=torch.float16):
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16):
             print(model.generate(samples, cfg.config.generate, prompts=prompt)[0])
         # print(model.generate(samples, cfg.config.generate, prompts=prompt)[0])
     except Exception as e:
