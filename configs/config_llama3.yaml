@@ -14,16 +14,16 @@
 
 model:
   model_type: "llama3"  # Options: "vicuna", "llama3"
+
   # paths
   llama_path: ""  # Keep for backward compatibility
   whisper_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/whisper-large-v3"
   # beats_path: "/cpfs02/shared/speechllm/music_project/SALMONN-main/ckpt/BEATs/BEATs_iter3_plus_AS2M_finetuned_on_AS2M_cpt2.pt"
   beats_path: "" # Set to "" if not using BEATs
-
-  ckpt: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_whisp_lar_v3_llama3_8b/202508152328/checkpoint_best.pth" # if not "", load model from ckpt for training or evaluation
-  
   # Model type configuration for LLaMA3
   llama3_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/llama3.1-8b-instruct"  # LLaMA3-8B-Instruct path
+  ckpt: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_whisp_lar_v3_llama3_8b/202508152328/checkpoint_best.pth" # if not "", load model from ckpt for training or evaluation
+  
   use_bf16: True  # Use bf16 for LLaMA3
 
   freeze_whisper: True
@@ -63,7 +63,7 @@ datasets:
 run:
   # log & settings
   seed: 42
-  output_dir: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_whisp_lar_v3_llama3_8b/"
+  output_dir: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_whisp_lar_v3_llama3_8b"
   evaluate: False # if True, only evaluate model on test data
 
   log_freq: 5

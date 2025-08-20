@@ -24,7 +24,7 @@ model:
   llama3_path: "/cpfs02/user/liuzhan/Project/SALMONN/ckpt/llama3.1-8b-instruct"  # 请修改为您的LLaMA 3.1-8b-instruct模型路径
   use_bf16: True  # LLaMA3.1推荐使用bfloat16精度
   
-  ckpt: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_whisp_lar_v3_llama3_8b/202508152328/checkpoint_best.pth"  # 您微调后的模型checkpoint路径
+  ckpt: "/shared/brainllm/liuzhan/salmonn/exp/LibriSpeech_960_perturb_whisp_lar_v3_llama3_8b/202508191951/checkpoint_26.pth"  # 您微调后的模型checkpoint路径
 
   freeze_whisper: True
   freeze_beats: True

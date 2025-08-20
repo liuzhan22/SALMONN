@@ -102,7 +102,7 @@ class Runner:
         if is_main_process():
             wandb.init(
                 project="SALMONN",
-                name=f"train_LibriSpeech960_7B_wo_beats_{job_id}",
+                name=f"train_LibriSpeech960_whisp_large_v3_llama3.1_8b_instruct_wo_beats_{job_id}",
                 config=self.config.to_dict(),
                 dir=str(self.output_dir),
             )
